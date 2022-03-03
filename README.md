@@ -14,8 +14,10 @@ For each http address in the dblp column:
 
 Save raw data under _Input/RawNetworkDataFrame.csv_  
 ### Process raw data
-- Remove individuals not in the network using seen list (pid_list)
-- Add author_name and coauthor_name columns using name mapping (pid_name_mapping)
-- Remove duplicates since edges are bidirectional, remove if row data is same when author and coauthor is swapped
+* Remove individuals not in the network using seen list (pid_list)
+* Add author_name and coauthor_name columns using name mapping (pid_name_mapping)
+* Remove duplicates since edges are bidirectional, remove if row data is same when author and coauthor is swapped
+  * Create a check_duplicates string for each row in the format `<sorted[author_pid,coauthor_pid]><title><year>.`  
+  * Rationale of doing sorted is to ensure directional relationships are ignored to prevent duplicates (A->B and B->A are treated the same)
 
 Save processed data under _Input/ProcessedNetworkDataFrame.csv_  

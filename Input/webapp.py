@@ -18,21 +18,24 @@ df = pd.read_csv("ProcessedNetworkDataFrame.csv")
 def get_author_name(author_pid):
     return str(df.loc[df['author_pid']==author_pid].iloc[0]['author_name'])
 
-def generate_graph(year_range, author_pid):
-    df_filtered = df.loc[(year_range[0]<=df['year']) & (df['year']<=year_range[1])].reset_index(drop=True)
-    if author_pid != None:
-        df_filtered = df_filtered.loc[df['author_pid']==author_pid]
+def generate_graph(year_range, option):
+    if option == "Random":
+        return nx.fast_gnp_random_graph(n=989, p=0.03, seed=4071)
+    else:
+        df_filtered = df.loc[(year_range[0]<=df['year']) & (df['year']<=year_range[1])].reset_index(drop=True)
+        # if author_pid != None:
+        #     df_filtered = df_filtered.loc[df['author_pid']==author_pid]
 
-    author_pid = df_filtered["author_pid"].to_list()
-    coauthor_pid = df_filtered["coauthor_pid"].to_list()
-    collaborations = list(zip(author_pid, coauthor_pid))
+        author_pid = df_filtered["author_pid"].to_list()
+        coauthor_pid = df_filtered["coauthor_pid"].to_list()
+        collaborations = list(zip(author_pid, coauthor_pid))
 
-    G = nx.Graph()
-    G.add_edges_from(collaborations)
-    return G
+        G = nx.Graph()
+        G.add_edges_from(collaborations)
+        return G
 
-def network_graph(year_range, author_pid=None):
-    G = generate_graph(year_range, author_pid)
+def network_graph(year_range, option):
+    G = generate_graph(year_range, option)
     pos = nx.drawing.spring_layout(G)
     for node in G.nodes:
         G.nodes[node]['pos'] = list(pos[node])
@@ -117,8 +120,8 @@ def network_graph(year_range, author_pid=None):
 
     return figure
 
-def display_degree_distribution(year_range):
-    G = generate_graph(year_range, None)
+def display_degree_distribution(year_range, option):
+    G = generate_graph(year_range, option)
     degree_sequence = sorted([d for n, d in G.degree()], reverse=True)
     degree_count = collections.Counter(degree_sequence)
     degree = []
@@ -132,8 +135,8 @@ def display_degree_distribution(year_range):
     df_deg_dist = pd.DataFrame({'degree': degree, 'count': count})
     return px.scatter(df_deg_dist, x='degree', y='count', trendline='ols')
 
-def display_network_properties(year_range):
-    G = generate_graph(year_range, None)
+def display_network_properties(year_range, option):
+    G = generate_graph(year_range, option)
     for C in (G.subgraph(c).copy() for c in sorted(nx.connected_components(G), key=len)):
         lcc = C
     properties = {
@@ -188,11 +191,14 @@ tab_selected_style = {
     'padding': '12px'
 }
 
-
 app.layout = html.Div([
-    html.Div([html.H1("Collaborations Network Graph")],
-             className="row",
-             style={'textAlign': "center"}),
+    html.Div(
+        [
+            html.H1("Collaborations Network Graph")
+        ],
+        className="row",
+        style={'textAlign': "center"}
+    ),
     
     html.Div(
         className="row",
@@ -201,7 +207,7 @@ app.layout = html.Div([
                 className="two columns",
                 children=[
                     dcc.Markdown(d("""
-                            **Time Range To Visualize**
+                            **Time Range To Visualize**\n
                             Slide the bar to define year range.
                             """)),
                     html.Div(
@@ -209,13 +215,22 @@ app.layout = html.Div([
                         children=[
                             dcc.RangeSlider(
                                 id='my-range-slider',
-                                min=1990,
+                                min=1982,
                                 max=2021,
                                 step=1,
-                                value=[2010, 2015],
+                                value=[1997, 2007],
                                 vertical=True,
                                 verticalHeight=750,
                                 marks={
+                                    1982: {'label': '1982'},
+                                    1983: {'label': '1983'},
+                                    1984: {'label': '1984'},
+                                    1985: {'label': '1985'},
+                                    1986: {'label': '1986'},
+                                    1987: {'label': '1987'},
+                                    1988: {'label': '1988'},
+                                    1989: {'label': '1989'},
+                                    1989: {'label': '1989'},
                                     1990: {'label': '1990'},
                                     1991: {'label': '1991'},
                                     1992: {'label': '1992'},
@@ -260,77 +275,131 @@ app.layout = html.Div([
             html.Center(
                 className="eight columns",
                 children=[
-                    html.Div([
-                        html.Div(
-                        className="row",
-                        children=[
-                            dcc.Markdown(d("""
-                            **Author To Search**
-                            Input the author pid to visualize.
-                            """)),
-                            dcc.Input(id="input1", type="text", placeholder="author pid"),
-                            html.Div(id="output")
+                    html.Div(
+                        [
+                            # html.Div(
+                            #     className="row",
+                            #     children=[
+                            #         dcc.Markdown(d(
+                            #             """
+                            #             **Author To Search**
+                            #             Input the author pid to visualize.
+                            #             """)),
+                            #         dcc.Input(id="input1", type="text", placeholder="author pid"),
+                            #         html.Div(id="output")
+                            #     ],
+                            #     style={'height': '100px'}
+                            # ),
+                            html.Div(
+                                className="row",
+                                children=[
+                                    dcc.Markdown(d(
+                                        """
+                                        **View Network**\n
+                                        Select Actual or Random Network to view (default Actual)
+                                        """
+                                    )),
+                                    dcc.Tabs(
+                                        id="tabs-styled-with-inline", 
+                                        value=None, 
+                                        vertical=True, 
+                                        children=[
+                                            dcc.Tab(
+                                                label='Actual Collaboration Network', 
+                                                value='Actual', 
+                                                style=tab_style,
+                                                selected_style=tab_selected_style
+                                            ),
+                                            dcc.Tab(
+                                                label='Random Network', 
+                                                value='Random', 
+                                                style=tab_style,
+                                                selected_style=tab_selected_style
+                                            ),
+                                        ], 
+                                        style={'margin-bottom': '10px', 'width': '200px'}
+                                    ),
+                                    html.Div(id='tabs-content-inline'),
+                                ]
+                            ),
+                            dcc.Graph(id="my-graph", figure=network_graph([1997, 2007], 'Actual')),
+                            html.H3("Click and drag to zoom in")
                         ],
-                        style={'height': '100px'}
-                    ),
-                        dcc.Graph(id="my-graph",
-                                    figure=network_graph([2000,2021], None)),
-                        html.H3("Click and drag to zoom in")],
-                        style={'height': '1000px', 'width': '800px'}), 
+                        style={'height': '1000px', 'width': '800px'}
+                    ), 
                 ],
             ),
-            html.Div(className="twelve columns",
-                    children=[
-                        dcc.Markdown(
-                            d("""**Log-Log Degree Distribution**""")),
-                        dcc.Graph(
-                            id="degree_dist", figure=display_degree_distribution([2010, 2015])),
-                    ], style={'height': '400px', 'width': '350px'}),
+        ]
+    ),
+
+    html.Div(
+        className="row",
+        children=[
+            html.Div(
+                className="twelve columns",
+                children=[
+                    dcc.Markdown(d(
+                        """
+                        **Log-Log Degree Distribution**
+                        """)),
+                    dcc.Graph(id="degree_dist", figure=display_degree_distribution([1997, 2007], 'Actual')),
+                ], style={'height': '400px', 'width': '350px'}
+            ),
             html.Div(
                 className="two columns",
                 children=[
                     html.Div(
                         className='twelve columns',
                         children=[
-                            dcc.Markdown(d("""
-                            **Network Properties**
-                            """)),
+                            dcc.Markdown(d(
+                                """
+                                **Network Properties**
+                                """)),
                             dash_table.DataTable(
                                 id='network_properties',
-                                columns=[{"name": i, "id": i} for i in display_network_properties([2010, 2015]).columns],
-                                data=display_network_properties([2010, 2015]).to_dict('records'),
+                                columns=[{"name": i, "id": i} for i in display_network_properties([1997, 2007], 'Actual').columns],
+                                data=display_network_properties([1997, 2007], 'Actual').to_dict('records'),
                             ),
                         ],
-                        style={'height': '400px', 'width': '300px'}),
+                        style={'height': '400px', 'width': '300px'}
+                    ),
                 ]
             )
         ]
     )
+
 ])
 
 @app.callback(
     dash.dependencies.Output('my-graph', 'figure'),
     [
         dash.dependencies.Input('my-range-slider', 'value'), 
-        dash.dependencies.Input('input1', 'value')
+        # dash.dependencies.Input('input1', 'value')
+        dash.dependencies.Input('tabs-styled-with-inline', 'value')
     ]
 )
-def update_output(value,input1):
-    return network_graph(value, input1)
+def update_output(year_range, option):
+    return network_graph(year_range, option)
     
 @app.callback(
     dash.dependencies.Output('degree_dist', 'figure'),
-    dash.dependencies.Input('my-range-slider', 'value')
+    [
+        dash.dependencies.Input('my-range-slider', 'value'),
+        dash.dependencies.Input('tabs-styled-with-inline', 'value')
+    ]
 )
-def update_deg_dist(value):
-    return display_degree_distribution(value)
+def update_deg_dist(year_range, option):
+    return display_degree_distribution(year_range, option)
 
 @app.callback(
     [
         dash.dependencies.Output('network_properties', 'columns'),
         dash.dependencies.Output('network_properties', 'data'),
     ],
-    dash.dependencies.Input('my-range-slider', 'value')
+    [
+        dash.dependencies.Input('my-range-slider', 'value'),
+        dash.dependencies.Input('tabs-styled-with-inline', 'value')
+    ]
 )
-def update_network_properties(value):
-    return [{"name": i, "id": i} for i in display_network_properties(value).columns], display_network_properties(value).to_dict('records')
+def update_network_properties(year_range, option):
+    return [{"name": i, "id": i} for i in display_network_properties(year_range, option).columns], display_network_properties(year_range, option).to_dict('records')

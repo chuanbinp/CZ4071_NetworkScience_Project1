@@ -30,7 +30,17 @@ Save processed data under _Input/ProcessedNetworkDataFrame.csv_
 
 ## 1. Webapp
 
+### Run
+
 1. cd into ./Input folder
 2. Open terminal and run `pip install -r requirements.txt`
 3. Run `py project.py`
 4. Go to <http://127.0.0.1:8050/>
+
+### Features
+
+-   Year slider to visualise how network evolved over time
+-   Tab between the actual network and a random network generated using the Erdos-Renyi Model, G(n,p) where p = 0.03
+-   Log-log degree distribution and network properties table update with input
+-   Note: due to large data, loading time is long, esp when viewing random network
+    -   Degree distribution and properties table update faster

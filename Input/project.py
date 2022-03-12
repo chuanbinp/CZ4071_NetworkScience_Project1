@@ -1,8 +1,10 @@
 import math
 import networkx as nx
 import pandas as pd
+import random
 import collections
 import dash
+import pickle
 from dash import dash_table
 from dash import dcc
 from dash import html
@@ -14,6 +16,92 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 app.title = "CZ4071 Project 1"
 df = pd.read_csv("ProcessedNetworkDataFrame.csv")
+
+def calculate_diversity(G,connected_component):
+  num_nodes=len(connected_component)
+  countries=[]
+  institutes=[]
+  expertise=[]
+  for node in connected_component:
+    countries.append(G.nodes[node]['country'])
+    institutes.append(G.nodes[node]['institute'])
+    expertise.append(G.nodes[node]['expertise'])
+  diversity=(len(set(countries))/num_nodes)*(len(set(institutes))/num_nodes)*(len(set(expertise))/num_nodes)
+  return diversity
+  
+def network_reconstruction(G):
+    bridges=nx.bridges(G)
+    #removing bridges
+    for bridge in bridges:
+        #calculating data of connected component
+        cc_diversity=calculate_diversity(G,nx.node_connected_component(G, bridge[0]))
+        cc_nodes=len(nx.node_connected_component(G, bridge[0]))
+        G.remove_edge(bridge[0],bridge[1])
+        #new diversity is weighted sum of new cc diversities
+        cc_new_diversity=(len(nx.node_connected_component(G, bridge[0]))/cc_nodes)*calculate_diversity(G,nx.node_connected_component(G, bridge[0]))+(len(nx.node_connected_component(G, bridge[0]))/cc_nodes)*calculate_diversity(G,nx.node_connected_component(G, bridge[1]))
+        #don't remove bridge if results in less diversity
+        if (cc_diversity>cc_new_diversity):
+            G.add_edge(bridge[0],bridge[1]) 
+    #setting kmax=<k>
+    kmax=nx.number_of_edges(G) / nx.number_of_nodes(G)
+    #reducing degree of each node below kmax
+    for node in G:
+    #only reducing if greater than kmax
+        if(G.degree[node]>kmax):
+            #removing edges in the following priority till degree is lesser than kmax 1) both nodes have the same country, institution, or expertise 2) decreasing order of other node's degree
+            edges=G.edges(node)
+            neighbours=[]
+            for edge in edges:
+                neighbours.append(edge[1])
+            neighbour_degrees=[]
+            zero_diff=[]
+            one_diff=[]
+            two_diff=[]
+            neighbour_index=0
+            for neighbour in neighbours:
+                #get degrees of each neighbour
+                neighbour_degrees.append(G.degree(neighbour))
+                #get difference in attributes from node (range:0-3)
+                neighbour_difference=0
+                if(G.nodes[neighbour]['institute']!=G.nodes[node]['institute']):
+                    neighbour_difference+=1
+                if(G.nodes[neighbour]['country']!=G.nodes[node]['country']):
+                    neighbour_difference+=1
+                if(G.nodes[neighbour]['expertise']!=G.nodes[node]['expertise']):
+                    neighbour_difference+=1
+                if neighbour_difference==0:
+                    zero_diff.append(neighbour_index)
+                elif neighbour_difference==1:
+                    one_diff.append(neighbour_index)
+                elif neighbour_difference==2:
+                    two_diff.append(neighbour_index)
+                else:
+                    two_diff.append(neighbour_index)
+                neighbour_index+=1
+            sorted_degree_indexes=sorted(range(len(neighbour_degrees)), key=lambda k: neighbour_degrees[k])
+            #removing: neighbours with 0 difference from node
+            for index in zero_diff:
+                G.remove_edge(node,neighbours[index])
+                sorted_degree_indexes.remove(index)
+            if G.degree(node)<=kmax:
+                continue
+            #removing: neighbours with 1 difference from node
+            for index in one_diff:
+                G.remove_edge(node,neighbours[index])
+                sorted_degree_indexes.remove(index)
+            if G.degree(node)<=kmax:
+                continue
+            #removing: neighbours with 2 differences from node
+            for index in two_diff:
+                G.remove_edge(node,neighbours[index])
+                sorted_degree_indexes.remove(index)
+            if G.degree(node)<=kmax:
+                continue
+            #removing nodes by highest degree till less than kmax
+            while G.degree(node)>kmax:
+                G.remove_edge(node,neighbours[sorted_degree_indexes[-1]])
+                sorted_degree_indexes.pop()
+    return G
 
 def generate_graph(year_range, option):
     if option == "Random":
@@ -27,7 +115,13 @@ def generate_graph(year_range, option):
 
         G = nx.Graph()
         G.add_edges_from(collaborations)
-        return G
+        if option == "Network Reconstruction":
+            with open('saved_attrs.pkl', 'rb') as f:
+                attrs = pickle.load(f)
+            nx.set_node_attributes(G,attrs)
+            return network_reconstruction(G)
+        else:
+            return G
 
 def network_graph(year_range, option):
     G = generate_graph(year_range, option)
@@ -279,7 +373,7 @@ app.layout = html.Div([
                                     dcc.Markdown(d(
                                         """
                                         **View Network**\n
-                                        Select Actual or Random Network to view (default Actual)
+                                        Select Actual, Random Network or Reconstructed Network to view (default Actual)
                                         """
                                     )),
                                     dcc.Tabs(
@@ -296,6 +390,12 @@ app.layout = html.Div([
                                             dcc.Tab(
                                                 label='Random Network', 
                                                 value='Random', 
+                                                style=tab_style,
+                                                selected_style=tab_selected_style
+                                            ),
+                                            dcc.Tab(
+                                                label='Reconstructed Network', 
+                                                value='Network Reconstruction', 
                                                 style=tab_style,
                                                 selected_style=tab_selected_style
                                             ),
